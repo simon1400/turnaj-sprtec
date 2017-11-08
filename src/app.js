@@ -211,45 +211,77 @@ var app = new Vue({
         }
       }
 
-      // make pairs
-      while (availablePlayers.length > 1) {
-        var home = availablePlayers.shift()
-        // console.log('volno', round.bye);
-        // console.log('zapasy', round.matches);
-        // console.log('domaci', home.playerIndex);
-        var away = false
-        var awayCandidateIndex = 0
-        while (!away) {
-          var awayCandidate = availablePlayers[awayCandidateIndex]
-          // console.log('zkousim hosta ', awayCandidate.playerIndex);
-
-          if (!awayCandidate) {
-            var alert = 'Nepodařilo se najít kombinace dostupných hráčů, prosím zkuste zápasy generovat znovu. Nejsou opravdu všechny kombinace vyčerpány?\n'
-            round.matches.forEach((match) => {
-              alert += this.playerNames[match.home] +' vs '+this.playerNames[match.away] +'\n'
-            })
-            window.alert(alert)
-            return
+      // find all possible pairs that have no previous match
+      var possiblePairs = [];
+      for (var i = 0; i < availablePlayers.length - 1; i++) {
+        for (var j = i + 1; j < availablePlayers.length; j++) {
+          var home = availablePlayers[i]
+          var away = availablePlayers[j]
+          var match = {
+            home: home.playerIndex,
+            away: away.playerIndex,
+            pointsDiff: Math.abs(home.points - away.points),
+            oponentsPointsDiff: Math.abs(home.opponentsPoints - away.opponentsPoints),
+            opponentsOpponentsPoints: Math.abs(home.opponentsOpponentsPoints - away.opponentsOpponentsPoints)
           }
-
-          if (!this.playersMutualMatch(home.playerIndex, awayCandidate.playerIndex)) {
-            away = awayCandidate
-            availablePlayers.splice(awayCandidateIndex, 1)
+          if (!this.playersMutualMatch(home.playerIndex, away.playerIndex)) {
+            possiblePairs.push(match)
           }
-
-          // console.log('uz spolu hrali');
-          awayCandidateIndex++
         }
-
-        var match = {
-          home: home.playerIndex,
-          away: away.playerIndex,
-          home_score: '',
-          away_score: '',
-          referee: -1
-        }
-        round.matches.push(match)
       }
+
+
+console.log(possiblePairs);
+
+      // sort pairs by points diff
+      possiblePairs.sort(this.fieldSorter(['pointsDiff', 'oponentsPointsDiff', 'opponentsOpponentsPoints']))
+
+      // pick pairs so every player can play
+      var pickedPlayers = []
+      var i = 0
+      while(round.matches.length < Math.floor(availablePlayers.length / 2)) {
+        var pair = possiblePairs[i]
+
+        // if pairs not already made
+        if (!pair) {
+          possiblePairs.splice(0, 1)
+          pickedPlayers = []
+          i = 0
+          pair = possiblePairs[i]
+          round.matches = []
+          console.log('nenaparoval jsem od vrchu, odstranuji nejlepsi shodu a zkousim znovu');
+          console.log('z poctu paru '+possiblePairs.length);
+        }
+
+        if (pickedPlayers.indexOf(pair.home) === -1 && pickedPlayers.indexOf(pair.away) === -1) {
+          pickedPlayers.push(pair.home)
+          pickedPlayers.push(pair.away)
+
+          round.matches.push({
+            home: pair.home,
+            away: pair.away,
+            home_score: '',
+            away_score: '',
+            referee: -1,
+            homePosition: this.playerPlacementByIndex(pair.home)
+          })
+
+          console.log('davam do kola hrace');
+          console.log(pair.home+' '+pair.away);
+        }
+        else {
+          console.log('jeden z hracu uz v kole je');
+          console.log(pair.home+' '+pair.away);
+        }
+        i++
+      }
+
+      // sort round matches by home player position
+      round.matches.sort(this.fieldSorter(['homePosition']))
+      round.matches.map(function(match) {
+        delete match.homePosition
+        return match
+      })
 
       this.$set(this.rounds, roundIndex, round)
     },
@@ -494,7 +526,7 @@ var app = new Vue({
           previousResult.points === result.points &&
           previousResult.oppontentsPoints === result.oppontentsPoints &&
           previousResult.opponentsOpponentsPoints === result.opponentsOpponentsPoints &&
-          previousResult.goalsFor === result.goalsFor
+          previousResult.goalsForSort === result.goalsForSort
         ) {
           result.sharedPosition = true
         }
