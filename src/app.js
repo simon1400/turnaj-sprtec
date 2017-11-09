@@ -230,11 +230,9 @@ var app = new Vue({
         }
       }
 
-
-console.log(possiblePairs);
-
       // sort pairs by points diff
       possiblePairs.sort(this.fieldSorter(['pointsDiff', 'oponentsPointsDiff', 'opponentsOpponentsPoints']))
+      console.table(possiblePairs);
 
       // pick pairs so every player can play
       var pickedPlayers = []
