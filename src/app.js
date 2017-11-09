@@ -211,76 +211,49 @@ var app = new Vue({
         }
       }
 
-      // find all possible pairs that have no previous match
-      var possiblePairs = [];
-      for (var i = 0; i < availablePlayers.length - 1; i++) {
-        for (var j = i + 1; j < availablePlayers.length; j++) {
-          var home = availablePlayers[i]
-          var away = availablePlayers[j]
-          var match = {
-            home: home.playerIndex,
-            away: away.playerIndex,
-            pointsDiff: Math.abs(home.points - away.points),
-            oponentsPointsDiff: Math.abs(home.opponentsPoints - away.opponentsPoints),
-            opponentsOpponentsPoints: Math.abs(home.opponentsOpponentsPoints - away.opponentsOpponentsPoints)
+      // find all possible opponents for each player
+      // and sort them by posision diff
+      var possiblePlayersOpponents = []
+      availablePlayers.forEach((player, playerPosition) => {
+        var possibleOpponents = this.players.map(opponent => {
+          return {
+            playerIndex: opponent.playerIndex,
+            positionDiff: Math.abs(playerPosition + 1 - this.playerPlacementByIndex(opponent.playerIndex))
           }
-          if (!this.playersMutualMatch(home.playerIndex, away.playerIndex)) {
-            possiblePairs.push(match)
-          }
-        }
-      }
+        }).filter(opponent => {
+          return player.opponents.indexOf(opponent.playerIndex) === -1 && player.playerIndex !== opponent.playerIndex
+        }).sort(this.fieldSorter(['positionDiff']))
+        possiblePlayersOpponents.push({
+          playerIndex: player.playerIndex,
+          possibleOpponents: possibleOpponents
+        })
+      })
 
-
-console.log(possiblePairs);
-
-      // sort pairs by points diff
-      possiblePairs.sort(this.fieldSorter(['pointsDiff', 'oponentsPointsDiff', 'opponentsOpponentsPoints']))
-
-      // pick pairs so every player can play
-      var pickedPlayers = []
-      var i = 0
-      while(round.matches.length < Math.floor(availablePlayers.length / 2)) {
-        var pair = possiblePairs[i]
-
-        // if pairs not already made
-        if (!pair) {
-          possiblePairs.splice(0, 1)
-          pickedPlayers = []
-          i = 0
-          pair = possiblePairs[i]
-          round.matches = []
-          console.log('nenaparoval jsem od vrchu, odstranuji nejlepsi shodu a zkousim znovu');
-          console.log('z poctu paru '+possiblePairs.length);
-        }
-
-        if (pickedPlayers.indexOf(pair.home) === -1 && pickedPlayers.indexOf(pair.away) === -1) {
-          pickedPlayers.push(pair.home)
-          pickedPlayers.push(pair.away)
-
-          round.matches.push({
-            home: pair.home,
-            away: pair.away,
-            home_score: '',
-            away_score: '',
-            referee: -1,
-            homePosition: this.playerPlacementByIndex(pair.home)
+      // for each player assign an opponent
+      // that has lowest position diff
+      console.dir(possiblePlayersOpponents)
+      var playersInRound = []
+      possiblePlayersOpponents.forEach(player => {
+        if (playersInRound.indexOf(player.playerIndex) === -1) {
+          var opponent = player.possibleOpponents.find(item => {
+            return playersInRound.indexOf(item.playerIndex) === -1
           })
 
-          console.log('davam do kola hrace');
-          console.log(pair.home+' '+pair.away);
-        }
-        else {
-          console.log('jeden z hracu uz v kole je');
-          console.log(pair.home+' '+pair.away);
-        }
-        i++
-      }
+          if (!opponent) {
+            console.dir(playersInRound)
+            console.dir(player)
+          }
 
-      // sort round matches by home player position
-      round.matches.sort(this.fieldSorter(['homePosition']))
-      round.matches.map(function(match) {
-        delete match.homePosition
-        return match
+          var match = {
+            home: player.playerIndex,
+            away: opponent.playerIndex,
+            home_score: '',
+            away_score: '',
+            referee: -1
+          }
+          playersInRound.push(player.playerIndex, opponent.playerIndex)
+          round.matches.push(match)
+        }
       })
 
       this.$set(this.rounds, roundIndex, round)
@@ -453,12 +426,18 @@ console.log(possiblePairs);
           homePlayer.results[roundIndex] = {
             opponent: match.away,
             goalsFor: match.home_score,
-            goalsAgainst: match.away_score
+            goalsAgainst: match.away_score,
+            comparison:
+              match.home_score > match.away_score ? '+' :
+              match.home_score === match.away_score ? '=' : '-'
           }
           awayPlayer.results[roundIndex] = {
             opponent: match.home,
             goalsFor: match.away_score,
-            goalsAgainst: match.home_score
+            goalsAgainst: match.home_score,
+            comparison:
+              match.away_score > match.home_score ? '+' :
+              match.away_score === match.home_score ? '=' : '-'
           }
 
           if (match.home_score > match.away_score) {
